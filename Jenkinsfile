@@ -1,5 +1,3 @@
-
-cat > Jenkinsfile <<'EOF'
 pipeline {
     agent any
 
@@ -176,5 +174,3 @@ REMOTE
         }
     }
 }
-EOF
-
