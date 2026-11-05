@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatWatch | Security Intelligence</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>🛡 ThreatWatch</h2>
+    <p class="subtitle">SECURITY INTELLIGENCE</p>
+    <nav>
+        <a class="active" href="/">Dashboard</a>
+        <a href="#scanner">URL Scanner</a>
+        <a href="#history">Scan History</a>
+    </nav>
+    <div class="sidebar-footer">
+        <span class="status-dot"></span> System Operational
+    </div>
+</div>
+
+<main class="main">
+    <header>
+        <div>
+            <p class="eyebrow">SECURITY OPERATIONS CENTER</p>
+            <h1>Threat Intelligence Dashboard</h1>
+            <p class="muted">Monitor suspicious URLs and analyze potential threats.</p>
+        </div>
+        <div class="live-status">● SYSTEM ONLINE</div>
+    </header>
+
+    <section class="stats">
+        <div class="stat-card">
+            <span>Total Scans</span>
+            <h2>{{ stats.total or 0 }}</h2>
+            <small>All analyzed URLs</small>
+        </div>
+        <div class="stat-card high">
+            <span>High Risk</span>
+            <h2>{{ stats.high or 0 }}</h2>
+            <small>Score 60–100</small>
+        </div>
+        <div class="stat-card medium">
+            <span>Medium Risk</span>
+            <h2>{{ stats.medium or 0 }}</h2>
+            <small>Score 30–59</small>
+        </div>
+        <div class="stat-card low">
+            <span>Low Risk</span>
+            <h2>{{ stats.low or 0 }}</h2>
+            <small>Score 0–29</small>
+        </div>
+    </section>
+
+    <section class="panel" id="scanner">
+        <div class="panel-heading">
+            <div>
+                <h2>URL Threat Analyzer</h2>
+                <p class="muted">Enter a URL to evaluate suspicious characteristics.</p>
+            </div>
+            <span class="tag">HEURISTIC ANALYSIS</span>
+        </div>
+
+        <div class="scanner-form">
+            <input type="url" id="urlInput"
+                   placeholder="https://example.com" required>
+            <button onclick="scanURL()" id="scanButton">Analyze URL →</button>
+        </div>
+
+        <p class="disclaimer">
+            Analysis is heuristic-based and does not guarantee that a URL is safe.
+        </p>
+
+        <div id="result" class="result hidden"></div>
+    </section>
+
+    <section class="panel" id="history">
+        <div class="panel-heading">
+            <div>
+                <h2>Recent Security Scans</h2>
+                <p class="muted">Previously analyzed URLs</p>
+            </div>
+            <span class="tag">LATEST 10</span>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>URL</th>
+                        <th>Risk Score</th>
+                        <th>Risk Level</th>
+                        <th>Scanned At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scan in scans %}
+                    <tr>
+                        <td class="url-cell">{{ scan.url }}</td>
+                        <td>{{ scan.risk_score }}/100</td>
+                        <td><span class="risk {{ scan.risk_level|lower }}">{{ scan.risk_level }}</span></td>
+                        <td>{{ scan.scanned_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="empty">No scans performed yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer>ThreatWatch © 2026 | Security Monitoring Platform</footer>
+</main>
+
+<script>
+async function scanURL() {
+    const url = document.getElementById("urlInput").value.trim();
+    const button = document.getElementById("scanButton");
+    const result = document.getElementById("result");
+
+    if (!url) {
+        alert("Please enter a URL.");
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Analyzing...";
+    result.classList.remove("hidden");
+    result.textContent = "Analyzing URL characteristics...";
+
+    try {
+        const response = await fetch("/api/scan", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({url})
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Analysis failed");
+        }
+
+        result.innerHTML = `
+            <h3>Analysis Result</h3>
+            <div class="score ${data.risk_level.toLowerCase()}">
+                ${data.risk_score}/100 — ${data.risk_level} RISK
+            </div>
+            <p><strong>Analyzed URL:</strong> ${escapeHTML(data.url)}</p>
+            <p><strong>Findings:</strong></p>
+            <ul>${data.reasons.length
+                ? data.reasons.map(r => `<li>${escapeHTML(r)}</li>`).join("")
+                : "<li>No configured suspicious patterns detected.</li>"}
+            </ul>
+            <p class="disclaimer">This result is heuristic, not a security guarantee.</p>
+        `;
+
+        setTimeout(() => location.reload(), 1200);
+
+    } catch (error) {
+        result.textContent = error.message;
+    } finally {
+        button.disabled = false;
+        button.textContent = "Analyze URL →";
+    }
+}
+
+function escapeHTML(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#39;"
+    })[char]);
+}
+</script>
+
+</body>
+</html>

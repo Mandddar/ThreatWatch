@@ -1,0 +1,9 @@
+cat > .dockerignore <<'EOF'
+venv/
+__pycache__/
+.pytest_cache/
+.git/
+*.pyc
+*.db
+terraform/.terraform/
+EOF
