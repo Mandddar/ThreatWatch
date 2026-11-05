@@ -5,6 +5,9 @@ pipeline {
     environment {
         IMAGE_NAME = 'threatwatch'
         IMAGE_TAG = '1.0'
+        AWS_REGION = 'ap-south-1'
+        ECR_REGISTRY = '461929940012.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPOSITORY = 'threatwatch'
     }
 
     stages {
@@ -48,15 +51,53 @@ pipeline {
                 '''
             }
         }
+
+        stage('Push Image to Amazon ECR') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',
+                           variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key',
+                           variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        set +x
+
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
+
+                        aws ecr get-login-password \
+                            --region ${AWS_REGION} | \
+                            docker login \
+                            --username AWS \
+                            --password-stdin ${ECR_REGISTRY}
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} \
+                            ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} \
+                            ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} \
+                            ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
             echo 'ThreatWatch CI Pipeline completed successfully!'
+            echo 'Docker image pushed to Amazon ECR.'
         }
 
         failure {
-            echo 'ThreatWatch CI Pipeline failed. Check the console output.'
+            echo 'ThreatWatch CI/CD Pipeline failed. Check console output.'
         }
     }
 }
+
