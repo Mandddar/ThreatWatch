@@ -1,3 +1,5 @@
+
+cat > Jenkinsfile <<'EOF'
 pipeline {
     agent any
 
@@ -96,8 +98,7 @@ pipeline {
                 withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'ec2-ssh-key',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
+                        keyFileVariable: 'SSH_KEY'
                     )
                 ]) {
                     sh '''
@@ -105,57 +106,58 @@ pipeline {
 
                         ssh -i "$SSH_KEY" \
                             -o StrictHostKeyChecking=no \
-                            "$SSH_USER@${EC2_HOST}" \
+                            -o UserKnownHostsFile=/dev/null \
+                            ubuntu@65.1.147.24 \
                             "IMAGE_TAG=${BUILD_NUMBER} bash -s" <<'REMOTE'
 
-                        set -e
+set -e
 
-                        ECR_REGISTRY="461929940012.dkr.ecr.ap-south-1.amazonaws.com"
-                        ECR_IMAGE="$ECR_REGISTRY/threatwatch:$IMAGE_TAG"
+ECR_REGISTRY="461929940012.dkr.ecr.ap-south-1.amazonaws.com"
+ECR_IMAGE="$ECR_REGISTRY/threatwatch:$IMAGE_TAG"
 
-                        echo "Logging in to Amazon ECR..."
+echo "Logging in to Amazon ECR..."
 
-                        aws ecr get-login-password --region ap-south-1 | \
-                            sudo docker login \
-                            --username AWS \
-                            --password-stdin "$ECR_REGISTRY"
+aws ecr get-login-password --region ap-south-1 | \
+    sudo docker login \
+    --username AWS \
+    --password-stdin "$ECR_REGISTRY"
 
-                        echo "Pulling latest ThreatWatch image..."
+echo "Pulling Docker image: $ECR_IMAGE"
 
-                        sudo docker pull "$ECR_IMAGE"
+sudo docker pull "$ECR_IMAGE"
 
-                        echo "Stopping previous ThreatWatch container..."
+echo "Stopping previous ThreatWatch container..."
 
-                        sudo docker stop threatwatch || true
-                        sudo docker rm threatwatch || true
+sudo docker stop threatwatch || true
+sudo docker rm threatwatch || true
 
-                        echo "Starting updated ThreatWatch container..."
+echo "Starting updated ThreatWatch container..."
 
-                        sudo docker run -d \
-                            --name threatwatch \
-                            --restart unless-stopped \
-                            -p 80:5000 \
-                            -v threatwatch-data:/app/data \
-                            "$ECR_IMAGE"
+sudo docker run -d \
+    --name threatwatch \
+    --restart unless-stopped \
+    -p 80:5000 \
+    -v threatwatch-data:/app/data \
+    "$ECR_IMAGE"
 
-                        sudo docker logout "$ECR_REGISTRY"
+sudo docker logout "$ECR_REGISTRY"
 
-                        echo "Checking application health..."
+echo "Checking application health..."
 
-                        for i in $(seq 1 12); do
-                            if curl -fsS http://localhost/health; then
-                                echo "ThreatWatch deployment successful!"
-                                exit 0
-                            fi
+for i in $(seq 1 12); do
+    if curl -fsS http://localhost/health; then
+        echo "ThreatWatch deployment successful!"
+        exit 0
+    fi
 
-                            sleep 5
-                        done
+    sleep 5
+done
 
-                        echo "ThreatWatch health check failed!"
-                        sudo docker logs threatwatch
-                        exit 1
+echo "ThreatWatch health check failed!"
+sudo docker logs threatwatch
+exit 1
 
-                        REMOTE
+REMOTE
                     '''
                 }
             }
@@ -174,3 +176,5 @@ pipeline {
         }
     }
 }
+EOF
+
